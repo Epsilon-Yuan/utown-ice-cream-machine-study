@@ -89,7 +89,7 @@ def report(path: Path, play_price: float, tub_value: float) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("csv_path", nargs="?", type=Path, default=Path("data/attempts.csv"))
+    parser.add_argument("csv_path", nargs="?", type=Path, default=Path("data/attempts_template.csv"))
     parser.add_argument("--play-price", type=float, default=1.0, help="Cost per attempt (default: $1)")
     parser.add_argument("--tub-value", type=float, default=6.0, help="Comparison value (default: $6)")
     args = parser.parse_args()
