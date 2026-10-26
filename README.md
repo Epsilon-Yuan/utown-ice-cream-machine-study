@@ -56,7 +56,6 @@ The program analyze_sessions.py uses this method. Its input has one attempts_to_
 
 For the same complete sessions, the two estimates are equal: $m$ wins divided by the total number of plays. The first method is more flexible when some sessions have no observed win.
 
-At USD 1 per play, the estimated expected spend to win is USD $1/\hat p$. Compared with a tub valued at about USD 6, the expected spend is below the tub value when $p>1/6$. This comparison ignores time, enjoyment, and risk preferences. The repository currently has blank data templates and no in-person UTown observations, so it does not claim an empirical estimate of $p$.
 
 ## Question 2
 
@@ -68,54 +67,108 @@ At USD 1 per play, the estimated expected spend to win is USD $1/\hat p$. Compar
 >
 > Suppose you bought many packets of M&M, how can you determine which plant these packets came with statistical testing?
 
-| Color | Cleveland | Hackettstown |
-| --- | ---: | ---: |
-| Red | 0.131 | 0.125 |
-| Orange | 0.205 | 0.250 |
-| Yellow | 0.135 | 0.125 |
-| Green | 0.198 | 0.125 |
-| Blue | 0.207 | 0.250 |
-| Brown | 0.124 | 0.125 |
+### Answer: specify the sampling model and hypotheses
 
-### Answer: compare the plant likelihoods
+Keep each packet's color counts. First consider the hypothesis that all sampled candies come from one plant, with independent colors and the supplied fixed probability vector. Conditional on the number of candies, the counts are multinomial.
 
-For a packet with observed color counts $(R,O,Y,G,B,Br)$ and total $n$, model its counts as multinomial under each plant. The log-likelihood ratio is
+Write p_C and p_H for the Cleveland and Hackettstown vectors. A direct comparison can test Hackettstown against Cleveland:
+
+$$
+H_0:p=p_H,\qquad H_1:p=p_C.
+$$
+
+For observed counts x_c across the six colors, the common multinomial coefficient cancels from the likelihood ratio:
 
 $$
 \Lambda=\log\frac{L_C}{L_H}
 =\sum_c x_c\log\left(\frac{p_{C,c}}{p_{H,c}}\right).
 $$
 
-Substituting the probabilities in the question gives
+The numerical weights, in red, orange, yellow, green, blue, brown order, are:
+
+| Color | Cleveland probability | Hackettstown probability | Log-ratio weight |
+| --- | ---: | ---: | ---: |
+| Red | 0.131 | 0.125 | 0.046884 |
+| Orange | 0.205 | 0.250 | -0.198451 |
+| Yellow | 0.135 | 0.125 | 0.076961 |
+| Green | 0.198 | 0.125 | 0.459953 |
+| Blue | 0.207 | 0.250 | -0.188742 |
+| Brown | 0.124 | 0.125 | -0.008032 |
+
+Thus:
 
 $$
-\Lambda \approx 0.0469R-0.1985O+0.0770Y+0.4600G-0.1887B-0.0080Br.
+\Lambda\approx0.046884R-0.198451O+0.076961Y
++0.459953G-0.188742B-0.008032Br.
 $$
 
-If $\Lambda>0$, the observed colors are more likely under Cleveland; if $\Lambda<0$, they are more likely under Hackettstown. The likelihood ratio is $e^{\Lambda}$. With equal prior probabilities and equal misclassification costs, choose the plant with the larger likelihood. A formal test at a specified significance level should set its threshold from the null distribution, which can be calculated from the multinomial model or estimated by simulation.
+A positive value favors Cleveland; a negative value favors Hackettstown. Choosing the larger likelihood is a classification rule. With equal prior probabilities and equal error costs, its cutoff is zero. That cutoff alone is not a 5% significance test.
 
-For scale, the expected counts per 100 candies are:
-
-| Color | Cleveland expected count | Hackettstown expected count |
-| --- | ---: | ---: |
-| Red | 13.1 | 12.5 |
-| Orange | 20.5 | 25.0 |
-| Yellow | 13.5 | 12.5 |
-| Green | 19.8 | 12.5 |
-| Blue | 20.7 | 25.0 |
-| Brown | 12.4 | 12.5 |
-
-Green is the most informative single color in the likelihood ratio; orange and blue support Hackettstown. Brown contributes very little. The directional Kullback-Leibler divergences are $D(C\|H)\approx0.02685$ and $D(H\|C)\approx0.02483$ nats per candy. For the per-candy log-likelihood ratio $W$, its variances are approximately $Var_C(W)=0.05771$ and $Var_H(W)=0.04560$. With an equal-prior classifier using threshold $\Lambda=0$, a normal approximation for a 5% error rate gives
+For a formal fixed-sample test at level alpha, use the upper tail of Lambda under the Hackettstown multinomial null. For example, the exact p-value is:
 
 $$
-n_C\approx\left(\frac{1.645\sqrt{0.05771}}{0.02685}\right)^2\approx217, \qquad
-n_H\approx\left(\frac{1.645\sqrt{0.04560}}{0.02483}\right)^2\approx201.
+p_{\text{test}}=P_H\bigl(\Lambda(X)\geq\Lambda(x_{\text{observed}})\bigr).
 $$
 
-Thus about 217 independently sampled candies is a rough planning figure for errors around 5% under either plant. Package-to-package variation can increase the required sample size.
+It can be evaluated by summing the relevant multinomial probabilities or simulated under the null using the planned sample size. Do not automatically compare twice this log-ratio with a chi-square distribution: these are two fixed, non-nested plant models, so a Wilks chi-square calibration does not follow.
 
-The question supplies the plant probabilities but no observed packet counts, so it is not possible to identify the source of a particular real packet or calculate its p-value yet. Keep the color counts for each packet separate. If all packets are assumed to come from one plant, sum the packet log-likelihood ratios. If packets can come from different plants, classify or model them at the packet level; pooling them can hide a mixture. Package manufacturing codes can provide a direct source label for validation.
+Both the likelihood method and an ordinary multinomial chi-square test require a suitable sampling model. Merely changing the statistic does not fix dependence within packets. If all packets have one common plant probability vector and satisfy the model, their counts can be pooled. If packets may come from different plants, classify them separately or fit a packet-level mixture model. With batch dependence or extra packet variation, use independent packets/batches as sampling units and model that variation. The larger likelihood also cannot establish provenance if both supplied models fit badly.
 
+### Numerical example using the article's reported data
+
+The linked article provides observed counts, which can be used as a worked example. These are its published data, not a new sample collected for this repository:
+
+| Color | Observed | Expected under Cleveland | Expected under Hackettstown |
+| --- | ---: | ---: | ---: |
+| Red | 108 | 93.272 | 89 |
+| Orange | 133 | 145.960 | 178 |
+| Yellow | 103 | 96.120 | 89 |
+| Green | 139 | 140.976 | 89 |
+| Blue | 133 | 147.384 | 178 |
+| Brown | 96 | 88.288 | 89 |
+| Total | 712 | 712 | 712 |
+
+Using unrounded weights gives:
+
+$$
+\Lambda=24.656156,\qquad \frac{L_C}{L_H}\approx5.1054\times10^{10}.
+$$
+
+Under the assumed model, the data favor Cleveland strongly relative to Hackettstown. This likelihood ratio is not a posterior probability and is not a p-value.
+
+For comparison, the ordinary Pearson goodness-of-fit statistic for a specified plant is:
+
+$$
+X_g^2=\sum_c\frac{(O_c-np_{g,c})^2}{np_{g,c}}.
+$$
+
+With six fixed probabilities and no fitted parameters, its usual reference has five degrees of freedom. The article's counts give these nominal results:
+
+| Null probability vector | Pearson statistic | df | Nominal p-value |
+| --- | ---: | ---: | ---: |
+| Cleveland | 6.073951 | 5 | 0.299090 |
+| Hackettstown | 57.651685 | 5 | 3.7113e-11 |
+| 2008 mix used in the article | 17.353052 | 5 | 0.00387668 |
+
+The 2008 vector, in the same color order, is (0.13, 0.20, 0.14, 0.16, 0.24, 0.13). These p-values reproduce the ordinary fixed-sample calculations; their interpretation still depends on the sampling and monitoring issues in the bonus. Not rejecting Cleveland does not prove that it is the source.
+
+The assignment gives no counts for the packets you personally bought, so their source cannot be determined from the question's probability vectors alone. Substitute those packets' actual counts for a real analysis.
+
+### Optional sample-size calculation
+
+For one independently sampled candy, the log-ratio has mean 0.02685419 and variance 0.05771025 under Cleveland, and mean -0.02482755 and variance 0.04560301 under Hackettstown. For the cutoff-zero classifier, the normal approximation to a 5% error probability gives:
+
+$$
+n_C\approx\left(\frac{1.644854\sqrt{0.05771025}}{0.02685419}\right)^2
+=216.513
+$$
+
+$$
+n_H\approx\left(\frac{1.644854\sqrt{0.04560301}}{0.02482755}\right)^2
+=200.161.
+$$
+
+Rounding upward suggests about 217 independent candies from one common source. This is an approximate classification planning figure, not an exact guarantee or a count of independent packets.
 ### Bonus: why the article's chi-square analysis is questionable
 
 > The methodology in this [article](https://blogs.sas.com/content/iml/2017/02/20/proportion-of-colors-mandms.html?utm_source=Twitter&utm_medium=social-voicestorm&utm_content=1f687eef-9380-4f8e-a23d-469c2cab502d) is flawed. Can you explain why? The answer has something to do with chi-square so if you proposed to use chi-square, you should think harder about the assumptions behind chi-square.
@@ -138,22 +191,38 @@ when the six probabilities are fixed in advance and the multinomial assumptions 
 
 > Suppose you observed k people playing the Ben and Jerry's ice cream machine at UTown. You counted the number of times N that the machine was played in order to get k tubs of ice cream. What distribution will best fit the expected number of times N one would have to play to obtain k tubs of ice cream?
 
-### Answer
+### Answer: trials through the k-th win
 
-If all plays are independent and share one constant success probability $p$, then $N$ follows a negative binomial distribution: it is the total number of trials required to obtain $k$ successes.
-
-$$
-P(N=n)=\binom{n-1}{k-1}p^k(1-p)^{n-k}, \quad n=k,k+1,\ldots
-$$
+Under independent plays with one constant success probability p, let N count the total plays through the k-th win. Then N follows a negative binomial distribution in the total-trials convention:
 
 $$
-E[N]=\frac{k}{p}, \qquad Var(N)=\frac{k(1-p)}{p^2}.
+P(N=n)=\binom{n-1}{k-1}p^k(1-p)^{n-k},\quad n=k,k+1,\ldots
 $$
 
-Equivalently, $N$ is the sum of $k$ independent geometric waiting times. If counting only failures, let $F=N-k$; then
+The last play must be a win. The first n-1 plays must contain k-1 wins, which explains the binomial coefficient. Equivalently, N is the sum of k independent geometric waiting times:
 
 $$
-P(F=f)=\binom{f+k-1}{k-1}p^k(1-p)^f, \quad f=0,1,2,\ldots
+E[N]=\frac{k}{p},\qquad Var(N)=\frac{k(1-p)}{p^2}.
 $$
 
-If the observed total is $N$ plays for $k$ wins, the maximum-likelihood estimate is $\hat p=k/N$. Using an estimate from prior or independent data, the expected plays to obtain $k$ future tubs is $k/\hat p$. If player skill or machine conditions cause different success probabilities, the waiting times have different geometric parameters and their sum is not a standard negative binomial distribution; a model allowing player or session variation is then more appropriate.
+Here k is the target number of wins/tubs. The number of people alone does not determine this distribution: observing k people who may quit without winning is not the same experiment. If the number of plays is fixed in advance and the number of wins is counted, that win count is binomial instead.
+
+Some software defines a negative binomial variable as the number of failures, F=N-k. In that convention:
+
+$$
+P(F=f)=\binom{f+k-1}{k-1}p^k(1-p)^f,\quad f=0,1,2,\ldots
+$$
+
+$$
+E[F]=\frac{k(1-p)}{p},\qquad Var(F)=\frac{k(1-p)}{p^2}.
+$$
+
+If collection really stops at the k-th win, the likelihood gives:
+
+$$
+\hat p=\frac{k}{N}.
+$$
+
+This is a maximum-likelihood estimate, not generally an unbiased estimate under this stopping rule. Inference should use the negative-binomial sampling design. An estimate from earlier data can be used to predict k future wins via k/p_hat.
+
+If players have different success probabilities, their waiting times generally have different geometric parameters and their sum is not a standard negative binomial. If the machine changes its probability after failures or wins, the independent constant-p model also needs revision. The geometric and negative binomial distributions are justified starting models under the stated assumptions, not empirically established fits to this particular machine.
