@@ -171,21 +171,100 @@ $$
 Rounding upward suggests about 217 independent candies from one common source. This is an approximate classification planning figure, not an exact guarantee or a count of independent packets.
 ### Bonus: why the article's chi-square analysis is questionable
 
-> The methodology in this [article](https://blogs.sas.com/content/iml/2017/02/20/proportion-of-colors-mandms.html?utm_source=Twitter&utm_medium=social-voicestorm&utm_content=1f687eef-9380-4f8e-a23d-469c2cab502d) is flawed. Can you explain why? The answer has something to do with chi-square so if you proposed to use chi-square, you should think harder about the assumptions behind chi-square.
+**The key issue is whether the sampling process justifies the multinomial model behind the ordinary Pearson chi-square test.** Having six color counts and a large total sample is not enough. The independence of individual candy observations, their common probability distribution under the null, and the sampling and stopping rules matter.
 
-The article reports 712 candies collected as one scoop per week over multiple weeks from communal containers refilled with large bags. It first tested those pooled counts against an older 2008 color mix. Crucially, it also says that after analyzing about 300 candies, the chi-square test was not significant; after looking at the residual pattern and noticing green and blue contributed most to the discrepancy, the author decided to collect more data. The conventional chi-square p-value computed on the final 712 candies treats the sample size and analysis as if they had been fixed in advance. Because the decision to continue was influenced by interim results, the nominal 5% p-value need not have its advertised Type I error rate. The final test should account for sequential monitoring or use a fresh, independent confirmation sample.
+The article's sampling leaves possible bag or batch effects unresolved. It also explicitly describes extending collection after inspecting an interim result. These warrant criticism, but they do not establish that chi-square is inherently unsuitable for candy colors.
 
-The usual Pearson goodness-of-fit reference distribution also relies on independent categorical observations from one fixed probability vector, with sufficiently large expected counts. Sparse expected counts are not the problem here. The collection design raises a separate independence and homogeneity concern: candies in a scoop may come from the same bag or production lot, and repeated samples from replenished containers may reflect batches. The article later discovers that the two plants use different color mixes. If packages or scoops have different plant/batch compositions, treating all 712 individual candies as independent draws from one fixed mix can underestimate variability and make the chi-square p-value too small. This concern depends on the actual sampling and mixing process; it cannot be resolved from pooled color totals alone.
+### 1. What the usual chi-square calculation assumes
 
-Finally, rejecting the 2008 color vector establishes only that the pooled sample differs from that benchmark. It does not identify either factory. A chi-square goodness-of-fit test would be valid for the narrow null if the candies were an independent random sample from one homogeneous source with a fixed mix, and the sample size had not been selected based on interim outcomes. To compare plants, retain counts by packet or batch, record manufacturing codes if available, and use a packet-level multinomial or hierarchical model. If sequential looks are planned, use a sequentially valid procedure or a separately collected validation sample.
+Let O_c be the observed count of color c, N the total number of candies, and p0_c the probability specified by the null hypothesis. The standard model and statistic are:
 
-For a single homogeneous source with observed counts $O_c$, the usual goodness-of-fit statistic is
+```text
+(O_1, ..., O_6) ~ Multinomial(N; p0_1, ..., p0_6)
 
-$$
-X_g^2=\sum_c\frac{(O_c-np_{g,c})^2}{np_{g,c}}, \quad df=5,
-$$
+E_c = N * p0_c
 
-when the six probabilities are fixed in advance and the multinomial assumptions hold. The statistic cannot be calculated without observed counts.
+X^2 = sum over the six colors of (O_c - E_c)^2 / E_c
+```
+
+For independent categorical observations with the same null probability vector, sufficiently large expected counts, and no estimated probability parameters, X^2 has an approximate chi-square distribution with 6 - 1 = 5 degrees of freedom. This is the model described in the [official SciPy documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.chisquare.html).
+
+The sampling plan must also justify using this reference distribution at the reported sample size. A prespecified N is one straightforward way to arrange this.
+
+**The six color totals do not have to be independent.** Their dependence is already part of the multinomial model:
+
+```text
+Cov(O_c, O_d) = -N * p0_c * p0_d, for c != d.
+```
+
+Thus, "the color counts sum to N, so chi-square is invalid" would be an incorrect answer. The relevant independence assumption concerns the individual trials. [Penn State's multinomial model notes](https://online.stat.psu.edu/stat504/Lesson01) distinguish these two kinds of dependence.
+
+### 2. Why the way candies were sampled matters
+
+The author pooled weekly scoops from communal containers supplied by two-pound bags, obtaining 712 candies. Factory codes were not recorded during collection. Consequently, the published aggregate counts do not reveal how observations were distributed across plants, bags, or batches. [Original article](https://blogs.sas.com/content/iml/2017/02/20/proportion-of-colors-mandms.html).
+
+If bags or batches have different underlying color probabilities, candies sharing one of those sources can be correlated. Treating all candies as independent may then use the wrong sampling variance. This is a potential model problem that requires evidence; merely being in the same bag does not prove dependence.
+
+The following **hypothetical example** shows the mathematical issue. It is not a claim about the article's actual bags.
+
+Suppose independently selected bags come from Cleveland with probability w and Hackettstown otherwise. Within each bag, colors are independent conditional on its plant. Let I_1 and I_2 indicate whether two candies from the same bag are green. From the probabilities in the question:
+
+```text
+q = P(a candy is green)
+  = 0.198*w + 0.125*(1 - w)
+
+Cov(I_1, I_2)
+  = E[I_1*I_2] - E[I_1]*E[I_2]
+  = w*(0.198)^2 + (1 - w)*(0.125)^2 - q^2
+  = w*(1 - w)*(0.198 - 0.125)^2
+```
+
+For 0 < w < 1, this covariance is positive: the two candies share the same randomly selected plant. If m candies are sampled from a bag and G is its green count, then:
+
+```text
+Var(G) = m*q*(1 - q)
+         + m*(m - 1)*w*(1 - w)*(0.198 - 0.125)^2
+```
+
+An ordinary multinomial model with the same marginal green probability q includes only the first term.
+
+For an illustrative w = 0.5 and m = 50:
+
+| Quantity | Value |
+| --- | ---: |
+| Marginal green probability q | 0.1615 |
+| Variance under independent candy sampling | 6.7708875 |
+| Extra variance from the shared plant | 3.2640125 |
+| Actual variance under this hypothetical bag model | 10.0349000 |
+
+The variance is about 48.2% larger in this example. The aggregate expected proportions can therefore be correct while the multinomial variance is wrong. Pearson's usual chi-square calibration depends on that variance structure, not just on matching the expected proportions. Grouping and extra variation are discussed in [Penn State's multinomial regression notes](https://online.stat.psu.edu/stat504/Lesson08).
+
+Two qualifications are essential:
+
+- **Mixing plants does not automatically invalidate chi-square.** If a plant were independently selected for every candy with a fixed mixing probability, the candy colors would be independent draws from one fixed mixture vector. The ordinary multinomial model would apply to that vector.
+- **A heterogeneous alternative does not invalidate a correctly specified null.** If the null states that all candies are independent draws from Cleveland's vector, a possible mixture under the alternative is a reason the test might reject, not a defect in its null calibration.
+
+The defensible criticism is therefore that the sampling model needs justification. The article's pooled totals alone cannot prove that clustering occurred, or establish a corrected variance.
+
+### 3. An additional problem explicitly documented in the article
+
+The author reports a preliminary analysis of about 300 candies that did not reject the 2008 proportions. After noticing discrepancies involving green and blue, the author decided to collect more data. [Original article](https://blogs.sas.com/content/iml/2017/02/20/proportion-of-colors-mandms.html).
+
+This creates a concern about **outcome-dependent continuation**. An ordinary chi-square p-value calculated at the final N does not automatically account for a decision to extend sampling based on earlier outcomes. Conditional on such a final sample size, the counts need not retain the multinomial distribution used in the usual calculation.
+
+The article does not specify enough of the stopping and reporting procedure to calculate the actual false-positive rate or claim that collection repeatedly continued until significance. The precise criticism is that the stated nominal significance level has not been justified for that procedure.
+
+A prespecified final sample size, an independent confirmation sample, or a sequential method calibrated to the monitoring rule would address this concern. [Time-uniform inference](https://arxiv.org/abs/1810.08240) provides methods designed to remain valid during repeated monitoring.
+
+### 4. What the criticism does and does not imply
+
+Small expected counts are not the issue here. For the article's 2008 benchmark, the smallest expected count is 712 * 0.13 = 92.56, comfortably above the usual rule of thumb.
+
+Failure to reject Cleveland's proportions also does not prove Cleveland provenance. It only indicates compatibility with that model at the chosen significance level, subject to its assumptions.
+
+A stronger study would prespecify sampling and stopping, preserve counts and source information for each sampled bag or batch, and use a model that reflects the actual independent sampling units. If bag or batch effects are present, the analysis should account for them. Replacing Pearson's test with an ordinary multinomial likelihood-ratio test or an exact multinomial test would not, by itself, fix dependence.
+
+**The answer to the hint is to examine the sampling assumptions that produce the chi-square null distribution.** Possible dependence and varying source probabilities require investigation; the interim-driven extension requires calibration. Neither the dependence among the six color totals nor the mere existence of two factories is sufficient to declare chi-square invalid.
 
 ## Question 3
 
