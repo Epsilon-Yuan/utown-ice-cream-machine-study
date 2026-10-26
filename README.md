@@ -20,23 +20,39 @@ $$
 
 If the count includes only failures before the win, $F=T-1$, then $E[F]=(1-p)/p$.
 
-There are two practical ways to estimate $p$:
+There are two practical ways to estimate the win probability.
 
-1. **Record every play outcome.** Let $X_i=1$ for a win and $X_i=0$ for a loss. With $n$ recorded plays and $s=\sum_i X_i$ wins, the likelihood is proportional to $p^s(1-p)^{n-s}$, so
-   $$
-   \hat p=\frac{s}{n}.
-   $$
-   This is the method used by `analyze.py`. Its input has one `success` value per paid play. It can include all observed attempts even if some sessions ended before a win, provided the probability stayed constant.
+### Method 1: Record every play outcome
 
-2. **Record completed waiting times.** If $m$ sessions each end in a win, and $T_j$ is the number of plays in session $j$ including its winning play, the likelihood is
-   $$
-   L(p)=p^m(1-p)^{\sum_{j=1}^{m}T_j-m}.
-   $$
-   Maximizing it gives
-   $$
-   \hat p=\frac{m}{\sum_{j=1}^{m}T_j}.
-   $$
-   This is the method used by `analyze_sessions.py`; its input has one `attempts_to_first_win` value per completed session. Do not include an unfinished session in this data file.
+Let X_i equal 1 for a win and 0 for a loss. For n recorded plays, let s be the total number of wins. The likelihood and maximum-likelihood estimate are:
+
+$$
+s=\sum_{i=1}^{n}X_i
+$$
+
+$$
+L(p)\propto p^s(1-p)^{n-s}
+$$
+
+$$
+\hat p=\frac{s}{n}
+$$
+
+The program analyze.py uses this method. Its input has one success value per paid play. It can include observed attempts from sessions that ended before a win, provided the win probability stayed constant.
+
+### Method 2: Record completed waiting times
+
+For m sessions that each ended in a win, let T_j be the number of plays in session j, including the winning play. The likelihood and maximum-likelihood estimate are:
+
+$$
+L(p)=p^m(1-p)^{\sum_{j=1}^{m}T_j-m}
+$$
+
+$$
+\hat p=\frac{m}{\sum_{j=1}^{m}T_j}
+$$
+
+The program analyze_sessions.py uses this method. Its input has one attempts_to_first_win value per completed session. Do not include an unfinished session in this data file.
 
 For the same complete sessions, the two estimates are equal: $m$ wins divided by the total number of plays. The first method is more flexible when some sessions have no observed win.
 
@@ -44,7 +60,13 @@ At USD 1 per play, the estimated expected spend to win is USD $1/\hat p$. Compar
 
 ## Question 2
 
-M&M candies are manufactured at two US plants with these color probabilities:
+> M&M candies are manufactured at two different plants in the US with the following color distribution:
+>
+> Cleveland: Red=0.131, Orange=0.205, Yellow=0.135, Green=0.198, Blue=0.207, and Brown=0.124.
+>
+> Hackettstown: Red=0.125, Orange=0.25, Yellow=0.125, Green=0.125, Blue=0.25, and Brown=0.125.
+>
+> Suppose you bought many packets of M&M, how can you determine which plant these packets came with statistical testing?
 
 | Color | Cleveland | Hackettstown |
 | --- | ---: | ---: |
@@ -96,11 +118,13 @@ The question supplies the plant probabilities but no observed packet counts, so 
 
 ### Bonus: why the article's chi-square analysis is questionable
 
-The linked [SAS article](https://blogs.sas.com/content/iml/2017/02/20/proportion-of-colors-mandms.html?utm_source=Twitter&utm_medium=social-voicestorm&utm_content=1f687eef-9380-4f8e-a23d-469c2cab502d) analyzes 712 candies collected as scoops over multiple weeks from communal containers supplied by large bags. It tests the pooled counts against an older, single set of 2008 proportions. The article later reports that the two plants use different color mixes.
+> The methodology in this [article](https://blogs.sas.com/content/iml/2017/02/20/proportion-of-colors-mandms.html?utm_source=Twitter&utm_medium=social-voicestorm&utm_content=1f687eef-9380-4f8e-a23d-469c2cab502d) is flawed. Can you explain why? The answer has something to do with chi-square so if you proposed to use chi-square, you should think harder about the assumptions behind chi-square.
 
-A Pearson chi-square goodness-of-fit test assumes independent categorical observations drawn from one fixed probability vector (and sufficiently large expected counts). The important concern is not sparse expected counts: with 712 candies, the expected counts under the published proportions are large. Rather, candies from the same package or production lot may share a source and production conditions, so treating all 712 as independent draws can understate sampling variation. A mixture of plant-specific mixes also does not have the same package-level sampling behavior as independent draws from one homogeneous batch. If those assumptions fail, the usual chi-square reference distribution and p-value may be unreliable, often making evidence look stronger than it is.
+The article reports 712 candies collected as one scoop per week over multiple weeks from communal containers refilled with large bags. It first tested those pooled counts against an older 2008 color mix. Crucially, it also says that after analyzing about 300 candies, the chi-square test was not significant; after looking at the residual pattern and noticing green and blue contributed most to the discrepancy, the author decided to collect more data. The conventional chi-square p-value computed on the final 712 candies treats the sample size and analysis as if they had been fixed in advance. Because the decision to continue was influenced by interim results, the nominal 5% p-value need not have its advertised Type I error rate. The final test should account for sequential monitoring or use a fresh, independent confirmation sample.
 
-There is also a scope issue: rejecting the 2008 proportions shows inconsistency with that particular benchmark; by itself it does not identify Cleveland or Hackettstown. If candies truly were random independent draws from a well-mixed bin with one fixed color vector, a chi-square test against a specified vector would be valid for that narrow null. The article's sampling design and later-discovered plant differences do not establish that assumption for the intended factory inference. A stronger analysis keeps packets as sampling units, records plant codes where possible, and uses packet-level multinomial or overdispersed/hierarchical models.
+The usual Pearson goodness-of-fit reference distribution also relies on independent categorical observations from one fixed probability vector, with sufficiently large expected counts. Sparse expected counts are not the problem here. The collection design raises a separate independence and homogeneity concern: candies in a scoop may come from the same bag or production lot, and repeated samples from replenished containers may reflect batches. The article later discovers that the two plants use different color mixes. If packages or scoops have different plant/batch compositions, treating all 712 individual candies as independent draws from one fixed mix can underestimate variability and make the chi-square p-value too small. This concern depends on the actual sampling and mixing process; it cannot be resolved from pooled color totals alone.
+
+Finally, rejecting the 2008 color vector establishes only that the pooled sample differs from that benchmark. It does not identify either factory. A chi-square goodness-of-fit test would be valid for the narrow null if the candies were an independent random sample from one homogeneous source with a fixed mix, and the sample size had not been selected based on interim outcomes. To compare plants, retain counts by packet or batch, record manufacturing codes if available, and use a packet-level multinomial or hierarchical model. If sequential looks are planned, use a sequentially valid procedure or a separately collected validation sample.
 
 For a single homogeneous source with observed counts $O_c$, the usual goodness-of-fit statistic is
 
@@ -112,7 +136,7 @@ when the six probabilities are fixed in advance and the multinomial assumptions 
 
 ## Question 3
 
-Suppose $k$ people each win one tub, and $N$ is the total number of plays needed to obtain those $k$ wins.
+> Suppose you observed k people playing the Ben and Jerry's ice cream machine at UTown. You counted the number of times N that the machine was played in order to get k tubs of ice cream. What distribution will best fit the expected number of times N one would have to play to obtain k tubs of ice cream?
 
 ### Answer
 
